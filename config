@@ -1,0 +1,4 @@
+ngx_addon_name=ngx_http_logid_module
+HTTP_AUX_FILTER_MODULES="$HTTP_AUX_FILTER_MODULES ngx_http_logid_module"
+LOGID_SRCS="$ngx_addon_dir/ngx_http_logid_module.c"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $LOGID_SRCS"
