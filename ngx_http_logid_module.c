@@ -35,7 +35,7 @@ static ngx_command_t ngx_http_logid_commands[] =
 {
     {
         ngx_string("logid"),
-        NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+        NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG|NGX_HTTP_LIF_CONF|NGX_HTTP_SIF_CONF,
         ngx_conf_set_flag_slot,
         NGX_HTTP_LOC_CONF_OFFSET,
         offsetof(ngx_http_logid_conf_t, enable),
@@ -43,35 +43,35 @@ static ngx_command_t ngx_http_logid_commands[] =
     },
     {
         ngx_string("logid_cookie"),
-        NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+        NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG|NGX_HTTP_LIF_CONF|NGX_HTTP_SIF_CONF,
         ngx_conf_set_flag_slot,
         NGX_HTTP_LOC_CONF_OFFSET,
         offsetof(ngx_http_logid_conf_t, cookie_enable),
         NULL
     },
     { ngx_string("logid_cookie_name"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_SIF_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_logid_conf_t, cookie_name),
       NULL 
     },
     { ngx_string("logid_cookie_domain"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_SIF_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_logid_conf_t, cookie_domain),
       NULL
     },
     { ngx_string("logid_cookie_path"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_SIF_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_logid_conf_t, cookie_path),
       NULL
     },
     { ngx_string("logid_cookie_expire"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_SIF_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_logid_conf_t, cookie_expire_time),
@@ -131,7 +131,6 @@ ngx_http_logid_header_filter(ngx_http_request_t *r)
     if(!conf->enable
         || !conf->cookie_enable
         || r != r->main
-        || r->internal
         || r->error_page
         || r->post_action)
     {
@@ -223,9 +222,9 @@ static ngx_str_t*
 ngx_http_logid_get_new_logid(ngx_http_request_t *r)
 {
     ngx_str_t *logid;
-    ngx_md5_t                   md5;
+    ngx_md5_t                    md5;
     u_char                       *end;
-    u_char                       val[64];
+    u_char                       *val;
     u_char                       hashb[MD5_HASH_LEN];
     in_port_t port;
     char* addr;
@@ -241,8 +240,12 @@ ngx_http_logid_get_new_logid(ngx_http_request_t *r)
     addr = inet_ntoa(ip->sin_addr);
     port = ntohs(ip->sin_port);
 
-    end = ngx_sprintf(val, "%i,%ui,%s,%ui,%ui,%d",
-                      ngx_pid, r->connection->number,addr, port, r->start_sec,r->start_msec);
+    i = sizeof(ngx_pid) + sizeof(addr) - 1 + sizeof(port)
+        + sizeof(r->start_sec) + sizeof(r->start_msec) 
+        + sizeof(r->request_length) + r->headers_in.user_agent->value.len + 1;
+    val = ngx_pnalloc(r->pool, i);
+    end = ngx_sprintf(val, "%i,%s,%ui,%ui,%d,%O,%V",
+                      ngx_pid, addr, port, r->start_sec, r->start_msec, r->request_length, &r->headers_in.user_agent->value);
     *end = 0;
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
